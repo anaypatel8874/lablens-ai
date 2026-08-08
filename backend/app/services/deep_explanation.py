@@ -27,12 +27,116 @@ class AttentionExplanation:
     confidence: str
 
 
-# Knowledge base for deep explanations
-EXPLANATION_DB = {
+# Knowledge base for deep explanations (English)
+EXPLANATION_DB_EN = {
     "hemoglobin": {
         "low": {
-            "what_it_mean": "हीमोग्लोबिन (Hemoglobin) आपके लाल रक्त कोशिकाओं (RBC) में पाया जाने वाला एक प्रोटीन है जो शरीर में ऑक्सीजन ले जाता है। इसका कम होना मतलब है कि आपके रक्त में ऑक्सीजन ले जाने की क्षमता कम हो सकती है।",
-            "why_it_matters": "हीमोग्लोबिन शरीर के हर अंग तक ऑक्सीजन पहुंचाने के लिए जिम्मेदार है। इसके कम होने से ऊर्जा कम हो सकती है और शरीर के अंग पर्याप्त ऑक्सीजन नहीं पा सकते।",
+            "what_it_mean": "Hemoglobin is a protein in red blood cells (RBC) that carries oxygen throughout the body. Low hemoglobin means your blood may have reduced oxygen-carrying capacity.",
+            "why_it_matters": "Hemoglobin is responsible for delivering oxygen to every organ in the body. When it is low, energy levels may decrease and organs may not receive adequate oxygen.",
+            "associations": [
+                "Iron deficiency",
+                "Vitamin B12 or folate deficiency",
+                "Blood loss",
+                "Chronic inflammatory conditions",
+                "Kidney-related conditions",
+                "Certain types of anemia"
+            ],
+            "related_tests": ["MCV", "MCH", "MCHC", "RDW", "Ferritin", "Serum Iron", "TIBC", "Vitamin B12", "Folate", "Reticulocyte Count"],
+            "symptoms": ["Fatigue", "Weakness", "Shortness of breath", "Dizziness", "Headache", "Cold hands and feet"],
+            "does_not_prove": "Low hemoglobin does not necessarily mean you have a specific disease. It can occur for many reasons."
+        },
+        "high": {
+            "what_it_mean": "High hemoglobin means there are more red blood cells than normal in your blood.",
+            "why_it_matters": "This can make blood thicker, potentially putting extra strain on the heart and blood vessels.",
+            "associations": [
+                "Dehydration",
+                "Smoking",
+                "Living at high altitude",
+                "Chronic lung disease",
+                "Heart-related conditions"
+            ],
+            "related_tests": ["RBC Count", "Hematocrit", "Reticulocyte Count", "Oxygen Saturation"],
+            "symptoms": ["Headache", "Dizziness", "Red eyes", "Itchy skin"],
+            "does_not_prove": "High hemoglobin alone does not prove any specific disease."
+        }
+    },
+    "fasting_blood_sugar": {
+        "high": {
+            "what_it_mean": "Fasting blood sugar measures glucose in your blood after at least 8 hours without food.",
+            "why_it_matters": "Blood glucose is the main energy source for cells. Persistently high levels can affect various organs over time.",
+            "associations": [
+                "Prediabetes",
+                "Diabetes",
+                "Hormonal imbalance",
+                "Stress or illness",
+                "Medication effects"
+            ],
+            "related_tests": ["HbA1c", "Postprandial Glucose", "Random Glucose", "Insulin", "C-Peptide"],
+            "symptoms": ["Increased thirst", "Frequent urination", "Unexplained fatigue", "Blurred vision", "Slow-healing wounds"],
+            "does_not_prove": "A single elevated fasting glucose does not establish diabetes. Repeat testing is usually needed."
+        },
+        "low": {
+            "what_it_mean": "Low fasting blood sugar means glucose in your blood is below normal levels.",
+            "why_it_matters": "The brain needs glucose to function. Very low levels can affect the nervous system.",
+            "associations": [
+                "Delayed meals or reduced food intake",
+                "Excessive physical activity",
+                "Medication effects (insulin, diabetes drugs)",
+                "Certain hormonal conditions"
+            ],
+            "related_tests": ["Random Glucose", "HbA1c", "Insulin", "C-Peptide"],
+            "symptoms": ["Dizziness", "Trembling", "Sweating", "Confusion", "Hunger"],
+            "does_not_prove": "Low blood sugar alone does not indicate a chronic disease."
+        }
+    },
+    "tsh": {
+        "high": {
+            "what_it_mean": "TSH (Thyroid Stimulating Hormone) indicates how well the thyroid gland is working. High TSH typically suggests the thyroid is underactive.",
+            "why_it_matters": "The thyroid gland regulates metabolism, energy, and many bodily functions. Abnormal levels can affect heart, brain, and metabolism.",
+            "associations": [
+                "Hypothyroidism (underactive thyroid)",
+                "Iodine deficiency",
+                "Hashimoto's thyroiditis (autoimmune)",
+                "Medication effects"
+            ],
+            "related_tests": ["Free T4", "Free T3", "Anti-TPO", "Anti-thyroglobulin", "Total T3", "Total T4"],
+            "symptoms": ["Fatigue", "Weight gain", "Cold intolerance", "Joint pain", "Hair loss", "Constipation"],
+            "does_not_prove": "High TSH alone does not confirm hypothyroidism. Free T4 and clinical symptoms must be considered."
+        },
+        "low": {
+            "what_it_mean": "Low TSH typically indicates the pituitary is suppressing TSH due to excess thyroid hormones (hyperthyroidism).",
+            "why_it_matters": "Excess thyroid hormone can accelerate the body's metabolism, affecting heart rate, weight, and energy levels.",
+            "associations": [
+                "Hyperthyroidism (overactive thyroid)",
+                "Graves' disease",
+                "Thyroid nodules"
+            ],
+            "related_tests": ["Free T4", "Free T3", "TSI", "Anti-TPO"],
+            "symptoms": ["Weight loss", "Anxiety", "Rapid heartbeat", "Heat intolerance", "Increased appetite", "Insomnia"],
+            "does_not_prove": "Low TSH alone does not confirm hyperthyroidism."
+        }
+    },
+    "total_cholesterol": {
+        "high": {
+            "what_it_mean": "Total cholesterol is the sum of all cholesterol types in your blood.",
+            "why_it_matters": "High cholesterol can contribute to plaque buildup in arteries, increasing cardiovascular risk over time.",
+            "associations": [
+                "Dietary factors",
+                "Sedentary lifestyle",
+                "Genetic predisposition",
+                "Diabetes",
+                "Hypothyroidism",
+                "Obesity"
+            ],
+            "related_tests": ["LDL", "HDL", "VLDL", "Triglycerides", "Total/HDL Ratio"],
+            "symptoms": ["Usually no symptoms; long-term cardiovascular risk"],
+            "does_not_prove": "High cholesterol alone does not mean you have heart disease. It is a risk factor."
+        }
+    }
+}
+
+# Knowledge base for deep explanations (Hindi)
+EXPLANATION_DB_HI = {
             "associations": [
                 "आयरन की कमी (Iron deficiency)",
                 "विटामिन B12 या फोलेट की कमी",
@@ -150,15 +254,18 @@ class DeepExplanationBuilder:
     ) -> AttentionExplanation:
         """Build deep explanation for a single attention finding."""
         
+        # Select knowledge base based on language
+        db = EXPLANATION_DB_EN if language == "en" else EXPLANATION_DB_HI
+
         # Look up in database
         lookup_key = None
-        for key in EXPLANATION_DB:
+        for key in db:
             if key.lower() in test_name.lower() or test_name.lower() in key.lower():
                 lookup_key = key
                 break
 
-        if lookup_key and status in EXPLANATION_DB[lookup_key]:
-            info = EXPLANATION_DB[lookup_key][status]
+        if lookup_key and status in db[lookup_key]:
+            info = db[lookup_key][status]
             
             # Determine priority
             priority = "🟡"  # Default attention
@@ -201,6 +308,23 @@ class DeepExplanationBuilder:
             )
         
         # Generic explanation for unknown tests
+        if language == "en":
+            return AttentionExplanation(
+                test_name=test_name,
+                result=str(value),
+                unit=unit,
+                reference_range=reference_range,
+                status=status,
+                priority="🟡",
+                what_it_mean=f"The {test_name} result is outside the laboratory reference range.",
+                why_it_matters="This result may provide information about your health and is worth discussing with a healthcare professional.",
+                possible_associations=["Multiple causes possible; discuss with your doctor"],
+                related_tests=["Your doctor can advise"],
+                possible_symptoms=["Symptoms vary depending on the underlying cause"],
+                what_it_does_not_prove=["This alone does not establish a specific diagnosis"],
+                doctor_questions=[f"What does this {test_name} result mean?"],
+                confidence="LOW",
+            )
         return AttentionExplanation(
             test_name=test_name,
             result=str(value),
