@@ -288,7 +288,18 @@ async def get_deep_explain(
         "ai_confidence": evidence_result.get("overall_confidence", explanation.confidence),
         "evidence_based": evidence_result,
         "safety_status": "passed" if is_safe else "warnings",
+        "disease_associations": [],
     }
+
+    # Add disease associations from knowledge engine
+    from app.services.knowledge_engine import knowledge_engine
+    available_test_names = [t.test_name for t in report.test_results]
+    disease_associations = knowledge_engine.find_associated_diseases(
+        test_name=test.test_name,
+        result_status=test.status,
+        available_tests=available_test_names,
+    )
+    deep_explain["disease_associations"] = disease_associations[:3]  # Top 3
 
     return deep_explain
 
