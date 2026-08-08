@@ -6,6 +6,7 @@ from datetime import datetime
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.schemas.report import TestResultStatus
+from app.services.deep_explanation import DeepExplanationBuilder
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -469,7 +470,10 @@ Generate the comprehensive JSON analysis now."""
         critical_count = len(high_priority)
 
         if language == "hi":
-            # Build Hindi summary with proper format
+            # Build deep explanations using DeepExplanationBuilder
+            deep = DeepExplanationBuilder.build_deep_summary(results, language)
+
+            # Build test table rows
             test_rows = []
             for r in results:
                 status = r.get("status", "unknown")
@@ -478,30 +482,97 @@ Generate the comprehensive JSON analysis now."""
                 unit = r.get("unit", "")
                 ref = r.get("reference_text", "N/A")
                 status_hi = {"normal": "🟢 सामान्य", "low": "🟡 कम", "high": "🟠 अधिक", "borderline": "🟡 सीमा के आसपास", "critically_low": "🔴 गंभीर रूप से कम", "critically_high": "🔴 गंभीर रूप से अधिक"}.get(status, status)
-                test_rows.append(f"| {name} | {val} | {ref} | {status_hi} |")
+                test_rows.append(f"| {name} | {val} {unit} | {ref} | {status_hi} |")
 
-            summary_text = f"""**🧾 रिपोर्ट का नाम:** Medical Laboratory Report
+            # Build deep explanation sections
+            deep_sections = []
+            all_doctor_questions = []
+            for exp in deep["deep_explanations"]:
+                section = f"""
+### {exp['priority']} {exp['test_name']} — {exp['result']} {exp['unit']}
+**स्थिति:** {exp['status']}
+**संदर्भ सीमा:** {exp['reference_range']}
+
+#### इसका क्या अर्थ है?
+{exp['what_it_mean']}
+
+#### यह क्यों महत्वपूर्ण है?
+{exp['why_it_matters']}
+
+#### कौन से स्वास्थ्य मुद्दे इससे जुड़े हो सकते हैं?
+यह परिणाम कई कारणों से हो सकता है, जिनमें शामिल हो सकते हैं:
+"""
+                for assoc in exp["possible_associations"]:
+                    section += f"* {assoc}\n"
+                section += f"""
+#### संबंधित परीक्षण (Related Tests):
+"""
+                for test in exp["related_tests"]:
+                    section += f"* {test}\n"
+                section += f"""
+#### संभावित लक्षण (Possible Symptoms):
+"""
+                for sym in exp["possible_symptoms"]:
+                    section += f"* {sym}\n"
+                section += f"""
+#### यह परिणाम क्या साबित नहीं करता:
+"""
+                for not_prove in exp["what_it_does_not_prove"]:
+                    section += f"* {not_prove}\n"
+                section += f"""
+**विश्वसनीयता (Confidence):** {exp['confidence']}
+"""
+                deep_sections.append(section)
+                all_doctor_questions.extend(exp["doctor_questions"])
+
+            summary_text = f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🩺 OVERALL REPORT SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**🧾 रिपोर्ट का नाम:** Medical Laboratory Report
 **📅 रिपोर्ट की तारीख:** वर्तमान
 **👤 उपलब्ध Patient Information:** विवरण रिपोर्ट से प्राप्त
 
-### 🩺 मुख्य निष्कर्ष
+### 🩺 Overall Assessment
 
 आपकी रिपोर्ट में {total} परीक्षणों का विश्लेषण किया गया है:
 * {normal_count} परीक्षण सामान्य (Normal) सीमा में हैं 🟢
 * {attention_count} परीक्षण ध्यान देने योग्य हैं 🟡"""
             if critical_count > 0:
                 summary_text += f"\n* {critical_count} परीक्षण तत्काल चिकित्सकीय सलाह आवश्यक 🔴"
-            summary_text += """
+            summary_text += f"""
 
-### 🔬 महत्वपूर्ण परीक्षण
+अधिकांश परीक्षण सामान्य सीमा में हैं। कुछ परिणाम संदर्भ सीमा से बाहर या सीमा के निकट हैं जो एक योग्य स्वास्थ्य पेशेवर के साथ चर्चा के योग्य हो सकते हैं।
+
+### 🟢 Normal Findings
+
+| परीक्षण | परिणाम | स्थिति |
+| ------- | -----: | ------ |
+"""
+            for n in normal:
+                summary_text += f"| {n} | सामान्य |\n"
+            summary_text += """
+### 🟡 Attention Findings
 
 | परीक्षण | परिणाम | संदर्भ सीमा | स्थिति |
 | ------- | -----: | ----------: | ------ |
 """ + "\n".join(test_rows) + """
 
+### 🔎 Deep Explanation of Attention Findings
+"""
+            for section in deep_sections:
+                summary_text += section + "\n"
+
+            summary_text += f"""
+### 👨‍⚕️ डॉक्टर से चर्चा करने योग्य बातें (Questions for Doctor)
+"""
+            for i, q in enumerate(set(all_doctor_questions), 1):
+                summary_text += f"{i}. {q}\n"
+
+            summary_text += """
 ### ⚕️ Medical Disclaimer
 
-यह AI-generated विश्लेषण केवल शैक्षणिक और सूचनात्मक उद्देश्य के लिए है। यह चिकित्सक द्वारा किए गए प्रत्यक्ष परीक्षण, निदान (Diagnosis) या चिकित्सा सलाह का विकल्प नहीं है। प्रयोगशाला परिणामों की व्याख्या लक्षणों, चिकित्सा इतिहास, शारीरिक परीक्षण, दवाओं और अन्य क्लिनिकल जानकारी के साथ की जानी चाहिए। किसी भी दवा या उपचार में परिवर्तन करने से पहले योग्य स्वास्थ्य पेशेवर से परामर्श करें।"""
+यह AI-generated विश्लेषण केवल शैक्षणिक और सूचनात्मक उद्देश्य के लिए है। यह चिकित्सक, पैथोलॉजिस्ट या अन्य योग्य स्वास्थ्य पेशेषज्ञ द्वारा किए गए प्रत्यक्ष मूल्यांकन, निदान या उपचार का विकल्प नहीं है। प्रयोगशाला परिणामों की व्याख्या लक्षणों, चिकित्सा इतिहास, शारीरिक परीक्षण, दवाओं और अन्य क्लिनिकल जानकारी के साथ की जानी चाहिए। किसी भी दवा या उपचार में परिवर्तन करने से पहले योग्य स्वास्थ्य पेशेवर से परामर्श करें। यदि आपातकालीन लक्षण हों तो तुरंत चिकित्सकीय सहायता लें।"""
             return {
                 "overall_summary": summary_text,
                 "normal_findings": normal,
@@ -509,20 +580,16 @@ Generate the comprehensive JSON analysis now."""
                 "high_priority_findings": high_priority,
                 "parameter_explanations": explanations,
                 "comparison_with_previous": None,
-                "doctor_questions": [
-                    "क्या कोई असामान्य परिणाम चिंताजनक हैं?",
-                    "क्या मुझे इन परिणामों के लिए दोहरा टेस्ट करवाने की आवश्यकता है?",
-                    "इन परिणामों के आधार पर क्या कोई जीवनशैली परिवर्तन उपयोगी होंगे?",
-                    "क्या कोई अतिरिक्त जांच की सिफारिश की जा सकती है?",
-                    "क्या मेरी वर्तमान दवाएइन परिणामों को प्रभावित कर सकती हैं?",
-                ],
+                "doctor_questions": list(set(all_doctor_questions)),
                 "health_education": [
                     "संतुलित आहार और नियमित व्यायाम सामान्य स्वास्थ्य के लिए महत्वपूर्ण है।",
                     "नियमित स्वास्थ्य जांच से समय रहते समस्याओं का पता चल सकता है।",
                     "पर्याप्त पानी पीना और स्वस्थ नीद का कार्यक्रम बनाए रखना उपयोगी है।",
+                    "किसी भी असामान्य परिणाम के लिए योग्य स्वास्थ्य पेशेवर से परामर्श करें।",
                 ],
                 "data_quality_warnings": [],
-                "safety_disclaimer": "यह AI-generated विश्लेषण केवल शैक्षणिक और सूचनात्मक उद्देश्य के लिए है। प्रयोगशाला परिणामों की व्याख्या लक्षणों, चिकित्सा इतिहास, शारीरिक परीक्षण, दवाओं और अन्य क्लिनिकल जानकारी के साथ की जानी चाहिए। किसी भी दवा या उपचार में परिवर्तन करने से पहले योग्य स्वास्थ्य पेशेवर से परामर्श करें। यदि आपातकालीन लक्षण हों तो तुरंत चिकित्सकीय सहायता लें।",
+                "safety_disclaimer": "यह AI-generated विश्लेषण केवल शैक्षणिक और सूचनात्मक उद्देश्य के लिए है। प्रयोगशाला परिणामों की व्याख्या लक्षणों, चिकित्सा इतिहास, शारीरिक परीक्षण, दवाओं और अन्य क्लिनिकल जानकारी के साथ की जानी चाहिए। किसी भी दवा या उपचार में परिवर्तन करने से पहले योग्य स्वास्थ्य पेशेवर से परामर्श करें।",
+                "deep_explanations": deep["deep_explanations"],
             }
         elif language == "hinglish":
             summary = f"Aapki report mein {total} tests ka analysis hua. {normal_count} normal, {attention_count} attention needed"
