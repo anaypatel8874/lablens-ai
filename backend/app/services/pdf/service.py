@@ -11,6 +11,7 @@ Features:
 - PDF validation
 """
 import io
+import logging
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from reportlab.lib import colors
@@ -19,8 +20,10 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm, mm
 from reportlab.platypus import (
     BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, KeepTogether, KeepWithNext, NextPageTemplate, Flowable
+    PageBreak, KeepTogether, NextPageTemplate, Flowable
 )
+
+
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -666,7 +669,7 @@ class PDFReportService:
         usable_width = A4_WIDTH - 36 * mm
         col_widths = [usable_width * 0.25, usable_width * 0.15, usable_width * 0.1, usable_width * 0.25, usable_width * 0.25]
 
-        t = Table(table_data, colWidths=colWidths, repeatRows=1)
+        t = Table(table_data, colWidths=col_widths, repeatRows=1)
         t.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),

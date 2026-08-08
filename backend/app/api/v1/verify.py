@@ -12,7 +12,7 @@ from app.api.v1.auth import get_current_active_user
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
-router = APIRouter(prefix="/verify", tags=["Verification"])
+router = APIRouter(tags=["Verification"])
 
 
 class ValueVerificationRequest(BaseModel):

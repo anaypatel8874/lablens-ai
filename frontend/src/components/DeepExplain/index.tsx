@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, AlertTriangle, CheckCircle, AlertCircle, Info, ChevronDown, ChevronUp, Eye, Edit3, HelpCircle, TrendingUp, FlaskConical, Stethoscope, Shield, Activity, FileText, History, MessageCircle, Check, XCircle, Search } from 'lucide-react';
+import { X, AlertTriangle, CheckCircle, AlertCircle, Info, ChevronDown, ChevronUp, Eye, Edit3, HelpCircle, TrendingUp, FlaskConical, Stethoscope, Shield, Activity, Check, XCircle, Search } from 'lucide-react';
 import api from '../../services/api';
 
 interface DeepExplainProps {
@@ -9,7 +9,7 @@ interface DeepExplainProps {
   result: number | string | null;
   unit: string;
   referenceRange: string;
-  status: string;
+  status?: string;
   language: string;
   onClose: () => void;
 }
@@ -84,7 +84,7 @@ export default function DeepExplain({
   result,
   unit,
   referenceRange,
-  status,
+  status: _status,
   language,
   onClose,
 }: DeepExplainProps) {
