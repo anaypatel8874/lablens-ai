@@ -17,6 +17,8 @@ from app.core.logging import get_logger
 from app.services.ai.service import AIService
 from app.services.trends.service import TrendAnalysisService
 from app.services.pdf.service import PDFReportService
+from app.services.deep_explain_engine import deep_explain_engine
+from app.services.knowledge_engine import knowledge_engine
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["Reports"])
@@ -292,7 +294,6 @@ async def get_deep_explain(
     }
 
     # Add disease associations from knowledge engine
-    from app.services.knowledge_engine import knowledge_engine
     available_test_names = [t.test_name for t in report.test_results]
     disease_associations = knowledge_engine.find_associated_diseases(
         test_name=test.test_name,
@@ -300,6 +301,33 @@ async def get_deep_explain(
         available_tests=available_test_names,
     )
     deep_explain["disease_associations"] = disease_associations[:3]  # Top 3
+
+    # Generate evidence-grounded explanation using new engine
+    test_data = {
+        "test_name": test.test_name,
+        "result": test.result,
+        "unit": test.unit,
+        "reference_text": test.reference_text,
+        "status": test.status,
+        "source_page": "Page 1",
+    }
+    related_data = [
+        {
+            "test_name": t.test_name,
+            "result": t.result,
+            "unit": t.unit,
+            "reference_text": t.reference_text,
+            "status": t.status,
+        }
+        for t in report.test_results if t.id != test_id
+    ]
+
+    evidence_explanation = deep_explain_engine.generate(
+        test_data=test_data,
+        related_tests=related_data,
+        language=language,
+    )
+    deep_explain["evidence_grounded"] = evidence_explanation
 
     return deep_explain
 
