@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backend specific
+backend/lablens.db
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+
+# Frontend specific
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Uploads
+/tmp/lablens-uploads/
