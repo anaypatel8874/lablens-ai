@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, AlertTriangle, CheckCircle, AlertCircle, Info, ChevronDown, ChevronUp, Eye, Edit3, HelpCircle, TrendingUp, FlaskConical, Stethoscope, Shield, Activity } from 'lucide-react';
+import { X, AlertTriangle, CheckCircle, AlertCircle, Info, ChevronDown, ChevronUp, Eye, Edit3, HelpCircle, TrendingUp, FlaskConical, Stethoscope, Shield, Activity, FileText, History, MessageCircle, Check, XCircle, Search } from 'lucide-react';
 import api from '../../services/api';
 
 interface DeepExplainProps {
@@ -60,6 +60,21 @@ interface DeepExplanationData {
   safety_warning: string | null;
   source_page: string | null;
   ai_confidence: string;
+  disease_associations: Array<{
+    name: string;
+    common_name: string;
+    name_hi: string;
+    short_description: string;
+    association_strength: string;
+    explanation: string;
+    possible_symptoms: string[];
+    relevant_tests: string[];
+    supporting_evidence: string[];
+    missing_evidence: string[];
+    differential: string[];
+    confirmatory_evaluation: string[];
+    does_not_prove: string;
+  }>;
 }
 
 export default function DeepExplain({
@@ -86,6 +101,7 @@ export default function DeepExplain({
     safety: true,
   });
   const [showOriginal, setShowOriginal] = useState(false);
+  const [exploringDisease, setExploringDisease] = useState<number | null>(null);
 
   useEffect(() => {
     fetchDeepExplanation();
@@ -307,6 +323,73 @@ export default function DeepExplain({
                 </ul>
               </div>
             )}
+
+            {/* Disease Knowledge Cards */}
+            {data.disease_associations && data.disease_associations.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">🧬 Possible Health Conditions:</h4>
+                <div className="space-y-2">
+                  {data.disease_associations.map((disease, i) => (
+                    <div key={i} className="bg-purple-50 rounded-lg p-3 border border-purple-100">
+                      <div className="flex items-center justify-between mb-1">
+                        <h5 className="font-medium text-purple-900 text-sm">{disease.name}</h5>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${disease.association_strength === 'high' ? 'bg-green-100 text-green-700' : disease.association_strength === 'moderate' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>
+                          {disease.association_strength}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mb-2">{disease.short_description}</p>
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span>Supporting: {disease.supporting_evidence.length}</span>
+                        <span>•</span>
+                        <span>Missing: {disease.missing_evidence.length}</span>
+                      </div>
+                      <button
+                        onClick={() => setExploringDisease(exploringDisease === i ? null : i)}
+                        className="mt-2 text-xs text-purple-600 hover:text-purple-800 font-medium flex items-center gap-1"
+                      >
+                        <Search className="w-3 h-3" />
+                        {exploringDisease === i ? 'Hide Details' : 'Explore'}
+                      </button>
+                      {exploringDisease === i && (
+                        <div className="mt-3 pt-3 border-t border-purple-200 space-y-2">
+                          <div>
+                            <p className="text-xs font-medium text-gray-600">Why it may be relevant:</p>
+                            <p className="text-xs text-gray-600">{disease.explanation}</p>
+                          </div>
+                          {disease.supporting_evidence.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-green-700">Supporting Evidence:</p>
+                              <ul className="text-xs text-green-600 list-disc list-inside">
+                                {disease.supporting_evidence.map((e, j) => <li key={j}>{e}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                          {disease.missing_evidence.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-red-700">Missing Evidence:</p>
+                              <ul className="text-xs text-red-600 list-disc list-inside">
+                                {disease.missing_evidence.map((e, j) => <li key={j}>{e}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                          {disease.differential.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-gray-600">Differential:</p>
+                              <p className="text-xs text-gray-500">{disease.differential.join(', ')}</p>
+                            </div>
+                          )}
+                          <div className="bg-amber-50 rounded p-2 border border-amber-100">
+                            <p className="text-xs text-amber-800">
+                              <strong>⚠️ Does NOT prove:</strong> {disease.does_not_prove}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </Section>
 
           {/* Pattern Analysis */}
@@ -423,6 +506,28 @@ export default function DeepExplain({
             </ul>
           </Section>
 
+          {/* Missing Information */}
+          {data.missing_information && data.missing_information.length > 0 && (
+            <Section
+              title="❓ Missing Information"
+              icon={<Info className="w-4 h-4 text-gray-600" />}
+              expanded={expandedSections.missing}
+              onToggle={() => toggleSection('missing')}
+            >
+              <p className="text-sm text-gray-500 mb-2">
+                Because the following information is unavailable, the underlying cause cannot be determined from this report alone:
+              </p>
+              <ul className="space-y-1">
+                {data.missing_information.map((item, i) => (
+                  <li key={i} className="text-sm text-gray-600 flex items-start gap-2">
+                    <XCircle className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
           {/* Next Steps */}
           <div className="bg-green-50 rounded-xl p-4 border border-green-200">
             <h4 className="font-medium text-green-900 mb-2 flex items-center gap-2">
@@ -454,13 +559,23 @@ export default function DeepExplain({
 
           {/* Original Report Verification */}
           <div className="border-t border-gray-200 pt-4 mt-4">
-            <button
-              onClick={() => setShowOriginal(!showOriginal)}
-              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
-            >
-              <Eye className="w-4 h-4" />
-              View Original Report
-            </button>
+            <div className="flex items-center gap-3 mb-3">
+              <button
+                onClick={() => setShowOriginal(!showOriginal)}
+                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                <Eye className="w-4 h-4" />
+                View Original
+              </button>
+              <button className="flex items-center gap-2 text-sm text-green-600 hover:text-green-800 font-medium">
+                <Check className="w-4 h-4" />
+                Verify Value
+              </button>
+              <button className="flex items-center gap-2 text-sm text-orange-600 hover:text-orange-800 font-medium">
+                <Edit3 className="w-4 h-4" />
+                Correct Value
+              </button>
+            </div>
             {showOriginal && (
               <div className="mt-3 p-4 bg-gray-100 rounded-lg">
                 <p className="text-sm text-gray-600">
@@ -489,8 +604,15 @@ export default function DeepExplain({
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 bg-gray-50">
+          <div className="bg-amber-50 rounded-lg p-3 border border-amber-200 mb-3">
+            <p className="text-xs text-amber-800 text-center">
+              <strong>⚠️ Safety Notice:</strong> LabLens AI provides educational explanations of laboratory reports.
+              It does not replace a qualified healthcare professional and does not establish a diagnosis.
+              Laboratory findings should be interpreted together with symptoms, medical history, examination and other relevant information.
+            </p>
+          </div>
           <p className="text-xs text-gray-500 text-center">
-            This AI-generated analysis is for educational purposes only. It does not replace professional medical evaluation.
+            AI Confidence: {data.ai_confidence} • Evidence-based analysis • Not a diagnosis
           </p>
         </div>
       </div>
