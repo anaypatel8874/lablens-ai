@@ -123,9 +123,10 @@ async def get_deep_explain(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get deep explanation for a specific test result."""
+    """Get evidence-grounded deep explanation for a specific test result."""
     from app.services.deep_explanation import DeepExplanationBuilder
     from app.services.validation_engine import ClinicalValidator
+    from app.services.evidence_engine import evidence_engine
 
     result = await db.execute(
         select(Report)
@@ -146,8 +147,8 @@ async def get_deep_explain(
     if not test:
         raise HTTPException(status_code=404, detail="Test result not found")
 
-    # Get all related tests for pattern analysis
-    all_tests = [
+    # Get all related tests
+    related_report_tests = [
         {
             "test_name": t.test_name,
             "result": t.result,
@@ -156,10 +157,33 @@ async def get_deep_explain(
             "reference_text": t.reference_text,
             "status": t.status,
         }
-        for t in report.test_results
+        for t in report.test_results if t.id != test_id
     ]
 
-    # Build deep explanation
+    # Build test data
+    test_data = {
+        "test_name": test.test_name,
+        "result": test.result,
+        "result_text": test.result_text,
+        "unit": test.unit,
+        "reference_text": test.reference_text,
+        "status": test.status,
+        "source_page": "Page 1",
+    }
+
+    # Use Evidence Grounded Engine
+    evidence_result = evidence_engine.generate_explanation(
+        test_data=test_data,
+        related_tests=related_report_tests,
+        language=language,
+    )
+
+    # Validate final response
+    is_safe, warnings = evidence_engine.validate_final_response(evidence_result)
+    if not is_safe:
+        logger.warning(f"Deep explain safety violations: {warnings}")
+
+    # Build deep explanation (legacy fields for frontend compatibility)
     builder = DeepExplanationBuilder()
     explanation = builder.build_attention_explanation(
         test_name=test.test_name,
@@ -180,8 +204,6 @@ async def get_deep_explain(
         "alt": ["AST", "ALP", "GGT", "Bilirubin", "Albumin", "Total Protein"],
     }
 
-    # Find related tests in report
-    test_lookup = {t.test_name.lower(): t for t in report.test_results}
     related_tests = []
     normalized_name = test.normalized_test_name or test.test_name.lower()
 
@@ -190,7 +212,7 @@ async def get_deep_explain(
             for name in related_names:
                 found = False
                 for report_test in report.test_results:
-                    if name.lower() in report_test.test_name.lower():
+                    if report_test.id != test.id and name.lower() in report_test.test_name.lower():
                         related_tests.append({
                             "name": report_test.test_name,
                             "why_relevant": f"Commonly interpreted alongside {test.test_name}",
@@ -210,9 +232,6 @@ async def get_deep_explain(
                     })
             break
 
-    # Determine why flagged
-    why_flagged = f"This result has been flagged because its value ({test.result} {test.unit}) is outside the laboratory reference range ({test.reference_text})."
-
     # Determine priority
     if test.status.startswith("critically"):
         priority = "🔴 HIGH PRIORITY"
@@ -223,7 +242,7 @@ async def get_deep_explain(
     else:
         priority = "🟡 ATTENTION"
 
-    # Build response
+    # Build comprehensive response
     deep_explain = {
         "test_name": test.test_name,
         "result": str(test.result) if test.result is not None else test.result_text,
@@ -234,7 +253,7 @@ async def get_deep_explain(
         "confidence": explanation.confidence,
         "what_it_mean": explanation.what_it_mean,
         "why_it_matters": explanation.why_it_matters,
-        "why_flagged": why_flagged,
+        "why_flagged": f"This result has been flagged because its value ({test.result} {test.unit}) is outside the laboratory reference range ({test.reference_text}).",
         "medical_explanation": explanation.what_it_mean,
         "simple_explanation": explanation.what_it_mean,
         "possible_associations": [
@@ -256,7 +275,7 @@ async def get_deep_explain(
         "possible_symptoms": explanation.possible_symptoms,
         "what_it_does_not_prove": explanation.what_it_does_not_prove,
         "trend": None,
-        "missing_information": ["Clinical history", "Current symptoms", "Medication list"],
+        "missing_information": evidence_result.get("sections", [{}])[2].get("items", [{}])[0].get("statement", "").replace("Missing information: ", "") if len(evidence_result.get("sections", [])) > 2 else "Clinical history, current symptoms",
         "doctor_questions": explanation.doctor_questions,
         "next_steps": [
             "Discuss this result with a qualified healthcare professional",
@@ -266,7 +285,9 @@ async def get_deep_explain(
         ],
         "safety_warning": None,
         "source_page": "Page 1",
-        "ai_confidence": explanation.confidence,
+        "ai_confidence": evidence_result.get("overall_confidence", explanation.confidence),
+        "evidence_based": evidence_result,
+        "safety_status": "passed" if is_safe else "warnings",
     }
 
     return deep_explain
