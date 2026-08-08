@@ -100,21 +100,66 @@ async def get_dashboard(report_id: int, language: str = Query("en", regex="^(en|
 
 
 @router.get("/{report_id}/download")
-async def download_pdf(report_id: int, current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Report).where(Report.id == report_id, Report.user_id == current_user.id).options(selectinload(Report.test_results)))
+async def download_pdf(
+    report_id: int,
+    include_deep_explain: bool = Query(True),
+    language: str = Query("en"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Download professional PDF report with optional Deep Explain."""
+    result = await db.execute(
+        select(Report).where(Report.id == report_id, Report.user_id == current_user.id).options(selectinload(Report.test_results))
+    )
     report = result.scalar_one_or_none()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    pdf_service = PDFReportService()
+
     report_data = {
+        "filename": report.filename,
         "patient_info": {"name": report.patient_name, "age": report.patient_age, "gender": report.patient_gender},
         "report_date": report.report_date, "lab_name": report.lab_name,
-        "test_results": [{"test_name": t.test_name, "result": t.result, "result_text": t.result_text, "unit": t.unit, "reference_text": t.reference_text, "status": t.status} for t in report.test_results],
+        "test_results": [{"test_name": t.test_name, "result": t.result, "result_text": t.result_text, "unit": t.unit, "reference_text": t.reference_text, "status": t.status, "source_page": t.source_page} for t in report.test_results],
     }
+
     summary = report.ai_summary or {}
-    pdf_bytes = pdf_service.generate_summary_pdf(report_data, summary)
+
+    # Collect deep explain data for attention findings
+    deep_explain_data = []
+    if include_deep_explain:
+        for test in report.test_results:
+            if test.status not in ['normal', 'unknown', 'missing']:
+                de = {
+                    "test_name": test.test_name,
+                    "result": str(test.result) if test.result is not None else test.result_text,
+                    "unit": test.unit or "",
+                    "reference_range": test.reference_text or "N/A",
+                    "status": test.status,
+                    "priority": "🔴 HIGH PRIORITY" if test.status.startswith("critically") else "🟡 ATTENTION",
+                    "what_it_mean": f"{test.test_name} is a laboratory parameter evaluated in this report.",
+                    "why_flagged": f"This result ({test.result} {test.unit}) is outside the laboratory reference range ({test.reference_text}).",
+                    "why_it_matters": "This parameter provides information about your health status.",
+                    "what_it_does_not_prove": [f"One abnormal {test.test_name} result does not establish a specific diagnosis."],
+                    "missing_information": ["Clinical history", "Current symptoms", "Related tests"],
+                    "possible_symptoms": ["Symptoms vary depending on the underlying cause"],
+                    "pattern_analysis": "Related laboratory parameters should be considered together for interpretation.",
+                }
+                deep_explain_data.append(de)
+
+    # Generate professional PDF
+    from app.services.pdf.service import pdf_service
+    options = {
+        "include_deep_explain": include_deep_explain,
+        "language": language,
+    }
+    pdf_bytes = pdf_service.generate_professional_pdf(report_data, summary, deep_explain_data, options)
+
     from fastapi.responses import Response
-    return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename=lablens-report-{report_id}.pdf"})
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=lablens-report-{report_id}.pdf"},
+    )
 
 
 @router.get("/{report_id}/deep-explain/{test_id}")
