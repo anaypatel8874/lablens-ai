@@ -6,6 +6,13 @@ export default function ReportDashboard({ data }: { data: any }) {
   const { summary, status_counts, report } = data
   const [deepExplainTest, setDeepExplainTest] = useState<any>(null)
 
+  console.log('[ReportDashboard] Render:', {
+    hasReport: !!report,
+    testCount: report?.test_results?.length,
+    attentionCount: report?.test_results?.filter((t: any) => t.status !== 'normal' && t.status !== 'unknown' && t.status !== 'missing').length,
+    deepExplainTest: deepExplainTest?.test_name || null
+  })
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -71,7 +78,10 @@ export default function ReportDashboard({ data }: { data: any }) {
                   <td className="py-3">
                     {isAttention ? (
                       <button
-                        onClick={() => setDeepExplainTest(t)}
+                        onClick={() => {
+                          console.log('[Deep Explain] Button clicked:', { id: t.id, name: t.test_name, status: t.status });
+                          setDeepExplainTest(t);
+                        }}
                         className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-xs font-medium border border-blue-200"
                       >
                         <Search className="w-3 h-3" />

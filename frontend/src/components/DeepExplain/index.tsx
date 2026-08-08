@@ -108,16 +108,24 @@ export default function DeepExplain({
   }, [reportId, testId]);
 
   const fetchDeepExplanation = async () => {
+    console.log('[Deep Explain] Fetching...', { reportId, testId, language });
     try {
       setLoading(true);
-      const res = await api.get(`/reports/${reportId}/deep-explain/${testId}?language=${language}`);
+      setError(null);
+      const url = `/reports/${reportId}/deep-explain/${testId}?language=${language}`;
+      console.log('[Deep Explain] URL:', url);
+      const res = await api.get(url);
+      console.log('[Deep Explain] Response received:', Object.keys(res.data || {}));
       setData(res.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load deep explanation');
+      console.error('[Deep Explain] Error:', err.response?.data || err.message);
+      setError(err.response?.data?.detail || err.response?.data?.message || 'Failed to load deep explanation');
     } finally {
       setLoading(false);
     }
   };
+
+  console.log('[Deep Explain] Render:', { loading, error: !!error, hasData: !!data, testName });
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
