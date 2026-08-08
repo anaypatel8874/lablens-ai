@@ -115,6 +115,163 @@ async def download_pdf(report_id: int, current_user: User = Depends(get_current_
     return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename=lablens-report-{report_id}.pdf"})
 
 
+@router.get("/{report_id}/deep-explain/{test_id}")
+async def get_deep_explain(
+    report_id: int,
+    test_id: int,
+    language: str = Query("en", regex="^(en|hi|hinglish)$"),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get deep explanation for a specific test result."""
+    from app.services.deep_explanation import DeepExplanationBuilder
+    from app.services.validation_engine import ClinicalValidator
+
+    result = await db.execute(
+        select(Report)
+        .where(Report.id == report_id, Report.user_id == current_user.id)
+        .options(selectinload(Report.test_results))
+    )
+    report = result.scalar_one_or_none()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    # Find the specific test
+    test = None
+    for t in report.test_results:
+        if t.id == test_id:
+            test = t
+            break
+
+    if not test:
+        raise HTTPException(status_code=404, detail="Test result not found")
+
+    # Get all related tests for pattern analysis
+    all_tests = [
+        {
+            "test_name": t.test_name,
+            "result": t.result,
+            "result_text": t.result_text,
+            "unit": t.unit,
+            "reference_text": t.reference_text,
+            "status": t.status,
+        }
+        for t in report.test_results
+    ]
+
+    # Build deep explanation
+    builder = DeepExplanationBuilder()
+    explanation = builder.build_attention_explanation(
+        test_name=test.test_name,
+        value=test.result if test.result is not None else test.result_text,
+        unit=test.unit or "",
+        reference_range=test.reference_text or "N/A",
+        status=test.status,
+        language=language,
+    )
+
+    # Build related tests info
+    related_test_names = {
+        "hemoglobin": ["MCV", "MCH", "MCHC", "RDW", "Ferritin", "Serum Iron", "TIBC", "Vitamin B12", "Folate", "Reticulocyte Count"],
+        "fasting_blood_sugar": ["HbA1c", "Postprandial Glucose", "Random Glucose", "Insulin", "C-Peptide"],
+        "tsh": ["Free T4", "Free T3", "Anti-TPO", "Anti-Thyroglobulin", "Total T3", "Total T4"],
+        "total_cholesterol": ["LDL", "HDL", "VLDL", "Triglycerides", "Non-HDL Cholesterol"],
+        "creatinine": ["BUN", "Urea", "Uric Acid", "eGFR", "Sodium", "Potassium"],
+        "alt": ["AST", "ALP", "GGT", "Bilirubin", "Albumin", "Total Protein"],
+    }
+
+    # Find related tests in report
+    test_lookup = {t.test_name.lower(): t for t in report.test_results}
+    related_tests = []
+    normalized_name = test.normalized_test_name or test.test_name.lower()
+
+    for key, related_names in related_test_names.items():
+        if key in normalized_name or normalized_name in key:
+            for name in related_names:
+                found = False
+                for report_test in report.test_results:
+                    if name.lower() in report_test.test_name.lower():
+                        related_tests.append({
+                            "name": report_test.test_name,
+                            "why_relevant": f"Commonly interpreted alongside {test.test_name}",
+                            "current_value": str(report_test.result) if report_test.result is not None else report_test.result_text,
+                            "status": report_test.status,
+                            "available": True,
+                        })
+                        found = True
+                        break
+                if not found:
+                    related_tests.append({
+                        "name": name,
+                        "why_relevant": f"Commonly interpreted alongside {test.test_name}",
+                        "current_value": None,
+                        "status": None,
+                        "available": False,
+                    })
+            break
+
+    # Determine why flagged
+    why_flagged = f"This result has been flagged because its value ({test.result} {test.unit}) is outside the laboratory reference range ({test.reference_text})."
+
+    # Determine priority
+    if test.status.startswith("critically"):
+        priority = "🔴 HIGH PRIORITY"
+    elif test.status in ["low", "high"]:
+        priority = "🟠 MODERATE ATTENTION"
+    elif test.status == "borderline":
+        priority = "🟡 ATTENTION"
+    else:
+        priority = "🟡 ATTENTION"
+
+    # Build response
+    deep_explain = {
+        "test_name": test.test_name,
+        "result": str(test.result) if test.result is not None else test.result_text,
+        "unit": test.unit or "",
+        "reference_range": test.reference_text or "N/A",
+        "status": test.status,
+        "priority": priority,
+        "confidence": explanation.confidence,
+        "what_it_mean": explanation.what_it_mean,
+        "why_it_matters": explanation.why_it_matters,
+        "why_flagged": why_flagged,
+        "medical_explanation": explanation.what_it_mean,
+        "simple_explanation": explanation.what_it_mean,
+        "possible_associations": [
+            {
+                "condition": assoc,
+                "what_it_is": assoc,
+                "why_associated": f"This condition can be associated with {test.status} {test.test_name}",
+                "supporting_findings": [f"{test.test_name}: {test.result}"],
+                "missing_info": ["Clinical history", "Symptoms", "Additional tests"],
+                "confidence": "LOW",
+            }
+            for assoc in explanation.possible_associations
+        ],
+        "common_causes": explanation.possible_associations[:3],
+        "other_causes": explanation.possible_associations[3:],
+        "less_common_causes": [],
+        "pattern_analysis": f"This finding should be interpreted alongside related laboratory parameters for a more complete understanding.",
+        "related_tests": related_tests,
+        "possible_symptoms": explanation.possible_symptoms,
+        "what_it_does_not_prove": explanation.what_it_does_not_prove,
+        "trend": None,
+        "missing_information": ["Clinical history", "Current symptoms", "Medication list"],
+        "doctor_questions": explanation.doctor_questions,
+        "next_steps": [
+            "Discuss this result with a qualified healthcare professional",
+            "Keep previous reports available for comparison",
+            "Follow any existing medical advice",
+            "Bring a complete list of current medications to your appointment",
+        ],
+        "safety_warning": None,
+        "source_page": "Page 1",
+        "ai_confidence": explanation.confidence,
+    }
+
+    return deep_explain
+
+
 @router.delete("/{report_id}", status_code=204)
 async def delete_report(report_id: int, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Report).where(Report.id == report_id, Report.user_id == current_user.id))

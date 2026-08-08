@@ -1,7 +1,10 @@
-import { AlertTriangle, CheckCircle, AlertCircle, Info } from 'lucide-react'
+import { AlertTriangle, CheckCircle, AlertCircle, Info, Search } from 'lucide-react'
+import { useState } from 'react'
+import DeepExplain from './DeepExplain'
 
 export default function ReportDashboard({ data }: { data: any }) {
   const { summary, status_counts, report } = data
+  const [deepExplainTest, setDeepExplainTest] = useState<any>(null)
 
   return (
     <div className="space-y-6">
@@ -53,20 +56,52 @@ export default function ReportDashboard({ data }: { data: any }) {
               <th className="text-left py-2 font-medium text-gray-500">Result</th>
               <th className="text-left py-2 font-medium text-gray-500">Reference</th>
               <th className="text-left py-2 font-medium text-gray-500">Status</th>
+              <th className="text-left py-2 font-medium text-gray-500">Action</th>
             </tr>
           </thead>
           <tbody>
-            {report.test_results?.map((t: any) => (
-              <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="py-3 font-medium text-gray-900">{t.test_name}</td>
-                <td className="py-3">{t.result || t.result_text} {t.unit}</td>
-                <td className="py-3 text-gray-500">{t.reference_text || 'N/A'}</td>
-                <td className="py-3"><StatusPill status={t.status} /></td>
-              </tr>
-            ))}
+            {report.test_results?.map((t: any) => {
+              const isAttention = t.status !== 'normal' && t.status !== 'unknown' && t.status !== 'missing'
+              return (
+                <tr key={t.id} className={`border-b border-gray-100 hover:bg-gray-50 ${isAttention ? 'bg-yellow-50/50' : ''}`}>
+                  <td className="py-3 font-medium text-gray-900">{t.test_name}</td>
+                  <td className="py-3">{t.result || t.result_text} {t.unit}</td>
+                  <td className="py-3 text-gray-500">{t.reference_text || 'N/A'}</td>
+                  <td className="py-3"><StatusPill status={t.status} /></td>
+                  <td className="py-3">
+                    {isAttention ? (
+                      <button
+                        onClick={() => setDeepExplainTest(t)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-xs font-medium border border-blue-200"
+                      >
+                        <Search className="w-3 h-3" />
+                        Deep Explain
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
+
+      {/* Deep Explain Modal */}
+      {deepExplainTest && (
+        <DeepExplain
+          reportId={report.id}
+          testId={deepExplainTest.id}
+          testName={deepExplainTest.test_name}
+          result={deepExplainTest.result}
+          unit={deepExplainTest.unit}
+          referenceRange={deepExplainTest.reference_text}
+          status={deepExplainTest.status}
+          language="en"
+          onClose={() => setDeepExplainTest(null)}
+        />
+      )}
 
       {summary.doctor_questions?.length > 0 && (
         <div className="card">
